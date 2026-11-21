@@ -97,6 +97,7 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
 
     // ── 5. Determine payer ───────────────────────────────────────────────────
     var payerId: Long? = null
+    var payerSpanUsed: PersonSpan? = null
 
     // Check "paid by <person>" pattern
     val paidByIdx = tokens.indexOfFirst { it.lowercase() == "paid" }.let { pIdx ->
@@ -109,10 +110,14 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
         val payerSpan = personSpans.firstOrNull { it.start == paidByIdx + 2 }
         if (payerSpan != null) {
             payerId = payerSpan.person.id
+            payerSpanUsed = payerSpan
         } else {
             val token = tokens.getOrNull(paidByIdx + 2)?.lowercase()
             if (token != null && token in OWNER_ALIASES) {
                 payerId = owner.id
+                payerSpanUsed = personSpans.firstOrNull {
+                    it.start == paidByIdx + 2 && it.person.id == owner.id
+                }
                 consumed[paidByIdx + 2] = true
             }
         }
@@ -123,11 +128,17 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
         val tokenBeforeVerb = tokens.getOrNull(verbIdx - 1)?.lowercase()
         if (tokenBeforeVerb != null && tokenBeforeVerb in OWNER_ALIASES) {
             payerId = owner.id
+            payerSpanUsed = personSpans.firstOrNull {
+                it.end == verbIdx && it.person.id == owner.id
+            }
             consumed[verbIdx - 1] = true
         } else {
             // Find the person span ending at verbIdx
             val payerSpan = personSpans.firstOrNull { it.end == verbIdx }
-            if (payerSpan != null) payerId = payerSpan.person.id
+            if (payerSpan != null) {
+                payerId = payerSpan.person.id
+                payerSpanUsed = payerSpan
+            }
         }
     }
 
@@ -139,7 +150,7 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
     if (payerRecord.isVendor) return TypoError(line, "Vendor cannot be payer")
 
     // Mark payer's span as consumed
-    personSpans.firstOrNull { it.person.id == payerId }?.let {
+    payerSpanUsed?.let {
         for (k in it.start until it.end) consumed[k] = true
     }
 
@@ -147,7 +158,9 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
     if (verbMatch.kind == VerbClass.LOAN || verbMatch.kind == VerbClass.REPAYMENT) {
         // Find receiver: person after "to" or immediately after verb
         var receiverId: Long? = null
-        val toIdx = tokens.indexOfFirst { it.lowercase() == "to" && !consumed[tokens.indexOf(it)] }
+        val toIdx = tokens.indices.firstOrNull { idx ->
+            tokens[idx].lowercase() == "to" && !consumed[idx]
+        } ?: -1
         if (toIdx >= 0) {
             consumed[toIdx] = true
             val span = personSpans.firstOrNull { it.start == toIdx + 1 }
@@ -294,8 +307,7 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
 
     // Determine which person spans are participants (not the payer's span used for payer role)
     val participantSpans = personSpans.filter { span ->
-        // Don't re-add JMD as participant
-        !span.person.isVendor
+    !span.person.isVendor && span != payerSpanUsed
     }
 
     // Find all persons after "for"
@@ -383,33 +395,73 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
 
     val remaining = tokens.indices.filter { !consumed[it] }.map { tokens[it] }
 
-    // Match purpose dictionary
-    var label: String? = null
-    var purposeText: String? = null
-    val extraWords = mutableListOf<String>()
+// Match purpose dictionary, preferring the longest phrase.
+var label: String? = null
+var purposeText: String? = null
+val extraWords = mutableListOf<String>()
 
-    // Check for vendor auto-label
-    if (vendorId != null) {
-        label = "Tiffin"
-        purposeText = "Tiffin"
-    } else {
-        for (word in remaining) {
-            val w = word.lowercase()
-            val dictLabel = ctx.purposeMap[w]
-                ?: ctx.purposeMap.entries.firstOrNull { (key, _) ->
-                    key.length >= 5 && w.length >= 5 && editDistance(w, key) == 1
-                }?.value
-            if (dictLabel != null && label == null) {
-                label = dictLabel
-                purposeText = word
-            } else {
-                // Check city expansion
-                val cityFull = ctx.cityMap[w]
-                if (cityFull != null) extraWords.add(cityFull)
-                else extraWords.add(word)
+if (vendorId != null) {
+    label = "Tiffin"
+    purposeText = "Tiffin"
+} else {
+    var ri = 0
+
+    while (ri < remaining.size) {
+        var matchedLength = 0
+        var matchedPurpose: String? = null
+        var matchedLabel: String? = null
+
+        // Try longest exact phrase first.
+        for (len in minOf(remaining.size - ri, 4) downTo 1) {
+            val phrase = remaining.subList(ri, ri + len)
+                .joinToString(" ") { it.lowercase() }
+
+            val dictLabel = ctx.purposeMap[phrase]
+
+            if (dictLabel != null) {
+                matchedLength = len
+                matchedPurpose = phrase
+                matchedLabel = dictLabel
+                break
             }
         }
+
+        // Preserve existing single-word typo matching.
+        if (matchedLength == 0) {
+            val word = remaining[ri]
+            val w = word.lowercase()
+
+            val fuzzyLabel = ctx.purposeMap.entries.firstOrNull { (key, _) ->
+                !key.contains(" ") &&
+                    key.length >= 5 &&
+                    w.length >= 5 &&
+                    editDistance(w, key) == 1
+            }?.value
+
+            if (fuzzyLabel != null) {
+                matchedLength = 1
+                matchedPurpose = word
+                matchedLabel = fuzzyLabel
+            }
+        }
+
+        if (matchedLength > 0) {
+            if (label == null) {
+                label = matchedLabel
+                purposeText = matchedPurpose
+            }
+            ri += matchedLength
+        } else {
+            val word = remaining[ri]
+            val cityFull = ctx.cityMap[word.lowercase()]
+
+            if (cityFull != null) extraWords.add(cityFull)
+            else extraWords.add(word)
+
+            ri++
+        }
     }
+}
 
     // Check typo: leftover word 5+ letters near a registered alias
     for (word in remaining) {
@@ -562,14 +614,16 @@ private fun findAmount(tokens: List<String>, consumed: BooleanArray, verb: VerbM
         if (amt != null) {
             // Check what follows
             val afterAmt = tokens.getOrNull(nextAfterBack + 1)?.lowercase()
-            if (afterAmt == null || afterAmt in setOf("for", "on", "to", "by") ||
-                isPersonOrEnd(afterAmt, tokens, nextAfterBack + 1)
-            ) return amt
+            if (afterAmt == null || afterAmt in setOf("for", "on", "to", "by")){
+                return amt
+            }
         }
     }
 
     // Rule b: number after first "for" or "on"
-    val forOnIdx = tokens.indexOfFirst { it.lowercase() in setOf("for", "on") && !consumed[tokens.indexOf(it)] }
+    val forOnIdx = tokens.indices.firstOrNull { idx ->
+        tokens[idx].lowercase() in setOf("for", "on") && !consumed[idx]
+    } ?: -1
     if (forOnIdx >= 0) {
         val candB = tokens.getOrNull(forOnIdx + 1)
         if (candB != null) {
@@ -582,7 +636,7 @@ private fun findAmount(tokens: List<String>, consumed: BooleanArray, verb: VerbM
     val paidByIdx = tokens.indexOfFirst { it.lowercase() == "paid" }.let {
         if (it >= 0 && tokens.getOrNull(it + 1)?.lowercase() == "by") it else -1
     }
-    if (paidByIdx > 0) {
+    if (paidByIdx >= 0) {
         val candC = tokens.getOrNull(paidByIdx - 1)
         if (candC != null && !consumed[paidByIdx - 1]) {
             val amt = parseAmount(candC)
@@ -599,8 +653,6 @@ private fun findAmount(tokens: List<String>, consumed: BooleanArray, verb: VerbM
     }
     return null
 }
-
-private fun isPersonOrEnd(token: String, tokens: List<String>, idx: Int): Boolean = true
 
 private fun markAmountConsumed(tokens: List<String>, consumed: BooleanArray, amount: Int) {
     for (k in tokens.indices) {
@@ -632,8 +684,12 @@ fun computeShares(
             val shares = mutableListOf<ParticipantShare>()
             for (id in distinct) {
                 val explicit = explicitSplits[id]
-                if (explicit != null) shares.add(ParticipantShare(id, explicit))
-                else if (id == payerId) shares.add(ParticipantShare(id, remainder))
+                if (explicit != null){
+                    shares.add(ParticipantShare(id, explicit))
+                }else if (id == payerId && remainder > 0) {
+                    shares.add(ParticipantShare(id, remainder))
+                }
+
                 // else: not in explicit, not payer — no share (payer absorbs remainder)
             }
             shares
