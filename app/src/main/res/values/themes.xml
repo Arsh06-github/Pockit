@@ -5,7 +5,7 @@
         process start and the first Compose frame. enableEdgeToEdge() in
         MainActivity overrides the system bar colours at runtime.
     -->
-    <style name="Theme.Pockit" parent="android:Theme.Material.NoTitleBar">
+    <style name="Theme.Pockit" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/space_black</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
