@@ -353,9 +353,17 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
     for (span in participantSpans) {
         val afterEnd = tokens.getOrNull(span.end)
         val beforeStart = tokens.getOrNull(span.start - 1)
+        val personText = tokens.subList(span.start, span.end).joinToString(" ")
+
+        val afterEndIsCommaSeparated = afterEnd != null &&
+            Regex(
+                """(?i)\b${Regex.escape(personText)}\s*,\s*${Regex.escape(afterEnd)}\b"""
+            ).containsMatchIn(workLine)
 
         // "arsh 400" or "arsh: 400" or "arsh 40%"
-        if (afterEnd != null && !consumed[span.end]) {
+        if (afterEnd != null &&
+            !consumed[span.end] &&
+            !afterEndIsCommaSeparated) {
             val pct = afterEnd.removeSuffix("%")
             if (pct != afterEnd) {
                 val p = pct.toIntOrNull()
