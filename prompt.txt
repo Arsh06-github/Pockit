@@ -1,0 +1,40 @@
+Build Pockit, a private offline Android expense tracker, for its owner (Arsh).
+This folder is the project root. Create the Android project directly in it, not in a nested folder.
+
+READ FIRST, COMPLETELY
+1. .kiro/steering/steering.md
+   It is always loaded and is the only source of truth for behaviour, design, parser rules, data, seed data, tests and code rules.
+2. branding/
+   Files supplied by the owner. Where each one goes (steering section 3 has the details):
+   - bricolage-grotesque-variable.ttf       -> app/src/main/res/font/bricolage_grotesque.ttf
+   - bricolage-grotesque-OFL.txt            -> license of the font, leave in branding/
+   - pockit-icon-foreground-432.png         -> adaptive icon foreground (background colour #010102)
+   - pockit-icon-512.png                    -> legacy launcher icon
+   - pockit-mark-256.png, pockit-mark.svg   -> in-app mark shown just left of the word "Pockit"
+   - pockit-icon.svg, pockit-icon-foreground.svg -> source files, leave untouched
+
+HOW TO WORK
+- Work spec-driven with a single spec named pockit. Keep the spec files short: they point to steering sections instead of copying them. The tasks follow the build order in steering section 14, one task group per step.
+- Finish each step before starting the next. After each step, re-read the matching steering sections and check every rule against what you wrote.
+- Never ask the owner questions. Where steering is silent, pick the simplest option and remember it for the final message.
+- Every line of code follows steering section 2: write only what a requirement needs, no dead code, no pointless comments, no extra libraries, simple role-named folders exactly as in section 4.
+- You cannot compile or run anything here. Write conservative code, double check every import, API level and dependency version, and keep the build files minimal. Step 1 must produce a green cloud build of an empty app before anything else is built.
+- Keep parser/ and ledger/ free of Android imports. Write the tests from steering section 12 together with the code they test.
+- Use the exact texts, colours, sizes, timings and rules from steering. Do not paraphrase or improve them.
+- If two requirements seem to conflict, prefer the more specific one and mention it in the final message.
+
+STEPS (steering section 14)
+1. Project skeleton and the GitHub Actions workflow (.github/workflows/build-apk.yml) that builds an APK of an empty screen.
+2. ledger/ and its tests.
+3. parser/ (entries first, then commands) and its tests.
+4. data/: Room database, seed data, repository.
+5. Theme, components, Home with the chat box and the @ popup, the panel, every dialog.
+6. Thread, group and My Expenses screens with entry cards.
+7. Commands: @Search, @Edit, delete, clear, balance questions, settle-up, tables, the bottom sheet.
+8. Polish: haptics, motion, the 120 Hz request, back handling, launch screen, icon, the mark next to "Pockit".
+
+THE OWNER'S PLAN
+The owner will push this folder to a private GitHub repository. The workflow builds the release APK in the cloud and he downloads it as an artifact. If the cloud build fails he will paste the log to you: fix the root cause.
+
+WHEN FINISHED
+Reply with only: the assumptions you made, anything you could not verify without building, and a short list of what the owner must do to get the APK. Do not write extra documentation files.

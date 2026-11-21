@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        windowBackground is Space Black so there is no white flash between
+        process start and the first Compose frame. enableEdgeToEdge() in
+        MainActivity overrides the system bar colours at runtime.
+    -->
+    <style name="Theme.Pockit" parent="android:Theme.Material.NoTitleBar">
+        <item name="android:windowBackground">@color/space_black</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <style name="Theme.Pockit.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/space_black</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.Pockit</item>
+    </style>
+</resources>
