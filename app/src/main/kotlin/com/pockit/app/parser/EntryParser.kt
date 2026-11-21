@@ -47,7 +47,9 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
     val effectiveGroupTag = if (groupTag == "__general__") null else groupTag
 
     // ── 2. Tokenize ──────────────────────────────────────────────────────────
-    val tokens = workLine.split(Regex("""[\s,]+""")).filter { it.isNotBlank() }.toMutableList()
+    val tokens = workLine.split(Regex("""[\s,]+|(?<=\d)-(?=[A-Za-z])"""))
+        .filter { it.isNotBlank() }
+        .toMutableList()
     val consumed = BooleanArray(tokens.size)
 
     // ── 3. Match people (longest alias first) ───────────────────────────────
@@ -358,7 +360,7 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
             if (pct != afterEnd) {
                 val p = pct.toIntOrNull()
                 if (p != null) {
-                    explicitSplits[span.person.id] = p // store as percentage temporarily
+                    explicitSplits[span.person.id] = p
                     consumed[span.end] = true
                     splitType = SplitType.PERCENTAGE
                 }
@@ -372,16 +374,14 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
                 }
             }
         }
-        // "400-arsh" pattern
+
+        // "400-arsh" pattern (tokenized as "400", "arsh")
         if (beforeStart != null && !consumed[span.start - 1]) {
-            val hyphenParts = beforeStart.split("-")
-            if (hyphenParts.size == 2) {
-                val amt = parseAmount(hyphenParts[0])
-                if (amt != null) {
-                    explicitSplits[span.person.id] = amt
-                    consumed[span.start - 1] = true
-                    if (splitType != SplitType.REST_EQUAL) splitType = SplitType.EXPLICIT
-                }
+            val amt = parseAmount(beforeStart)
+            if (amt != null) {
+                explicitSplits[span.person.id] = amt
+                consumed[span.start - 1] = true
+                if (splitType != SplitType.REST_EQUAL) splitType = SplitType.EXPLICIT
             }
         }
     }
@@ -395,73 +395,73 @@ fun parseEntry(line: String, ctx: ParserContext): ParseResult {
 
     val remaining = tokens.indices.filter { !consumed[it] }.map { tokens[it] }
 
-// Match purpose dictionary, preferring the longest phrase.
-var label: String? = null
-var purposeText: String? = null
-val extraWords = mutableListOf<String>()
+    // Match purpose dictionary, preferring the longest phrase.
+    var label: String? = null
+    var purposeText: String? = null
+    val extraWords = mutableListOf<String>()
 
-if (vendorId != null) {
-    label = "Tiffin"
-    purposeText = "Tiffin"
-} else {
-    var ri = 0
+    if (vendorId != null) {
+        label = "Tiffin"
+        purposeText = "Tiffin"
+    } else {
+        var ri = 0
 
-    while (ri < remaining.size) {
-        var matchedLength = 0
-        var matchedPurpose: String? = null
-        var matchedLabel: String? = null
+        while (ri < remaining.size) {
+            var matchedLength = 0
+            var matchedPurpose: String? = null
+            var matchedLabel: String? = null
 
-        // Try longest exact phrase first.
-        for (len in minOf(remaining.size - ri, 4) downTo 1) {
-            val phrase = remaining.subList(ri, ri + len)
-                .joinToString(" ") { it.lowercase() }
+            // Try longest exact phrase first.
+            for (len in minOf(remaining.size - ri, 4) downTo 1) {
+                val phrase = remaining.subList(ri, ri + len)
+                    .joinToString(" ") { it.lowercase() }
 
-            val dictLabel = ctx.purposeMap[phrase]
+                val dictLabel = ctx.purposeMap[phrase]
 
-            if (dictLabel != null) {
-                matchedLength = len
-                matchedPurpose = phrase
-                matchedLabel = dictLabel
-                break
+                if (dictLabel != null) {
+                    matchedLength = len
+                    matchedPurpose = phrase
+                    matchedLabel = dictLabel
+                    break
+                }
             }
-        }
 
-        // Preserve existing single-word typo matching.
-        if (matchedLength == 0) {
-            val word = remaining[ri]
-            val w = word.lowercase()
+            // Preserve existing single-word typo matching.
+            if (matchedLength == 0) {
+                val word = remaining[ri]
+                val w = word.lowercase()
 
-            val fuzzyLabel = ctx.purposeMap.entries.firstOrNull { (key, _) ->
-                !key.contains(" ") &&
-                    key.length >= 5 &&
-                    w.length >= 5 &&
-                    editDistance(w, key) == 1
-            }?.value
+                val fuzzyLabel = ctx.purposeMap.entries.firstOrNull { (key, _) ->
+                    !key.contains(" ") &&
+                        key.length >= 5 &&
+                        w.length >= 5 &&
+                        editDistance(w, key) == 1
+                }?.value
 
-            if (fuzzyLabel != null) {
-                matchedLength = 1
-                matchedPurpose = word
-                matchedLabel = fuzzyLabel
+                if (fuzzyLabel != null) {
+                    matchedLength = 1
+                    matchedPurpose = word
+                    matchedLabel = fuzzyLabel
+                }
             }
-        }
 
-        if (matchedLength > 0) {
-            if (label == null) {
-                label = matchedLabel
-                purposeText = matchedPurpose
+            if (matchedLength > 0) {
+                if (label == null) {
+                    label = matchedLabel
+                    purposeText = matchedPurpose
+                }
+                ri += matchedLength
+            } else {
+                val word = remaining[ri]
+                val cityFull = ctx.cityMap[word.lowercase()]
+
+                if (cityFull != null) extraWords.add(cityFull)
+                else extraWords.add(word)
+
+                ri++
             }
-            ri += matchedLength
-        } else {
-            val word = remaining[ri]
-            val cityFull = ctx.cityMap[word.lowercase()]
-
-            if (cityFull != null) extraWords.add(cityFull)
-            else extraWords.add(word)
-
-            ri++
         }
     }
-}
 
     // Check typo: leftover word 5+ letters near a registered alias
     for (word in remaining) {
