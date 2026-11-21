@@ -32,7 +32,7 @@ import com.pockit.app.haptics.rememberHaptic
 import com.pockit.app.ui.AppViewModel
 import com.pockit.app.ui.components.ChatBox
 import com.pockit.app.ui.components.EntryCard
-import com.pockit.app.ui.components.MemberChip
+import com.pockit.app.ui.dialogs.MemberChip
 import com.pockit.app.ui.components.PressableBox
 import com.pockit.app.ui.theme.White
 

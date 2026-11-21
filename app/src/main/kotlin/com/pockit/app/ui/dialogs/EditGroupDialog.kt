@@ -23,7 +23,6 @@ import com.pockit.app.haptics.HapticHelper
 import com.pockit.app.haptics.HapticStrength
 import com.pockit.app.ui.AppViewModel
 import com.pockit.app.ui.components.DialogButtonsWithCancel
-import com.pockit.app.ui.components.MemberChip
 import com.pockit.app.ui.components.PockitDialog
 import com.pockit.app.ui.theme.SunriseOrange
 import com.pockit.app.ui.theme.White

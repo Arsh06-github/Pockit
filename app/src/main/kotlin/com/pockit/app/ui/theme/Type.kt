@@ -1,6 +1,8 @@
+
 package com.pockit.app.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -9,13 +11,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.pockit.app.R
 
+@OptIn(ExperimentalTextApi::class)
 val BricolageGrotesque = FontFamily(
     Font(
         R.font.bricolage_grotesque,
         weight = FontWeight.Normal,
         variationSettings = FontVariation.Settings(
             FontVariation.weight(400),
-            FontVariation.opticalSize(16f),
         ),
     ),
     Font(
@@ -23,7 +25,6 @@ val BricolageGrotesque = FontFamily(
         weight = FontWeight.Medium,
         variationSettings = FontVariation.Settings(
             FontVariation.weight(500),
-            FontVariation.opticalSize(16f),
         ),
     ),
     Font(
@@ -31,7 +32,6 @@ val BricolageGrotesque = FontFamily(
         weight = FontWeight.SemiBold,
         variationSettings = FontVariation.Settings(
             FontVariation.weight(600),
-            FontVariation.opticalSize(20f),
         ),
     ),
 )
